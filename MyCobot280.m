@@ -253,18 +253,7 @@ classdef MyCobot280 < handle
             %   angles - 2x6 vector of joint angles as [HighByte LowByte]
             
             response = obj.sendCommandWithResponse(obj.CMD_GET_ANGLES, 12);
-            angles = zeros(1, 6);
-            
-            for i = 1:6
-                highByte = response(2*i - 1);
-                lowByte = response(2*i);
-                temp = lowByte + highByte * 256;
-                
-                if temp > 32767
-                    temp = temp - 65536;
-                end
-                angles(i) = temp / 100;
-            end
+            angles = MyCobot280.decodeAngles(response);
         end
         
         function sendAngle(obj, jointID, angle, speed)
@@ -284,13 +273,7 @@ classdef MyCobot280 < handle
                 error('Speed must be between 0 and 100');
             end
 
-            % Convert angle to protocol format
-            angleInt = int16(angle * 100);
-            u = typecast(angleInt, 'uint16');
-            angleHigh = uint8(bitshift(u, -8));
-            angleLow = uint8(bitand(u, uint16(255)));
-
-            data = [uint8(jointID), angleHigh, angleLow, uint8(speed)];
+            data = [uint8(jointID), MyCobot280.encodeInt16(angle, 100), uint8(speed)];
             obj.sendCommand(obj.CMD_SEND_ANGLE, data);
         end
         
@@ -312,16 +295,7 @@ classdef MyCobot280 < handle
                 error('Speed must be between 0 and 100');
             end
 
-            data = zeros(1, 13, 'uint8');
-
-            for i = 1:6
-                angleInt = int16(angles(i) * 100);        % signed 16-bit value
-                u = typecast(angleInt, 'uint16');                     % work in uint16 for bit ops
-                data(2*i - 1) = uint8(bitshift(u, -8));   % high byte
-                data(2*i)     = uint8(bitand(u, uint16(255))); % low byte
-            end
-            
-            data(13) = uint8(speed);
+            data = [MyCobot280.encodeAngles(angles), uint8(speed)];
             obj.sendCommand(obj.CMD_SEND_ANGLES, data);
         end
         
@@ -332,29 +306,7 @@ classdef MyCobot280 < handle
             %            xyz in mm, rx/ry/rz in degrees
             
             response = obj.sendCommandWithResponse(obj.CMD_GET_COORDS, 12);
-            coords = zeros(1, 6);
-            
-            for i = 1:3  % x, y, z
-                highByte = response(2*i - 1);
-                lowByte = response(2*i);
-                temp = lowByte + highByte * 256;
-
-                if temp > 32767
-                    temp = temp - 65536;
-                end
-                coords(i) = temp / 10;  % Convert to mm
-            end
-
-            for i = 4:6  % rx, ry, rz
-                highByte = response(2*i - 1);
-                lowByte = response(2*i);
-                temp = lowByte + highByte * 256;
-
-                if temp > 32767
-                    temp = temp - 65536;
-                end
-                coords(i) = temp / 100;  % Convert to degrees
-            end
+            coords = MyCobot280.decodeCoords(response);
         end
 
         function sendCoord(obj, axis, value, speed)
@@ -374,16 +326,12 @@ classdef MyCobot280 < handle
             
             % Convert value based on axis type
             if axis <= 3  % xyz coordinates
-                valueInt = int16(value * 10);
+                scale = 10;
             else  % rx, ry, rz angles
-                valueInt = int16(value * 100);
+                scale = 100;
             end
 
-            u = typecast(valueInt, 'uint16');
-            valueHigh = uint8(bitshift(u, -8));
-            valueLow = uint8(bitand(u, uint16(255)));
-
-            data = [uint8(axis), valueHigh, valueLow, uint8(speed)];
+            data = [uint8(axis), MyCobot280.encodeInt16(value, scale), uint8(speed)];
             obj.sendCommand(obj.CMD_SEND_COORD, data);
         end
         
@@ -406,27 +354,7 @@ classdef MyCobot280 < handle
                 error('Speed must be between 0 and 100');
             end
             
-            data = zeros(1, 14, 'uint8');
-            
-            % xyz coordinates
-            for i = 1:3
-                valueInt = int16(coords(i) * 10);
-                u = typecast(valueInt, 'uint16');
-                data(2*i - 1) = uint8(bitshift(u, -8));
-                data(2*i) = uint8(bitand(u, uint16(255)));
-            end
-
-            % rx, ry, rz angles
-            for i = 4:6
-                valueInt = int16(coords(i) * 100);
-                u = typecast(valueInt, 'uint16');
-                data(2*i - 1) = uint8(bitshift(u, -8));
-                data(2*i) = uint8(bitand(u, uint16(255)));
-            end
-
-            data(13) = uint8(speed);
-            data(14) = uint8(mode);
-
+            data = [MyCobot280.encodeCoords(coords), uint8(speed), uint8(mode)];
             obj.sendCommand(obj.CMD_SEND_COORDS, data);
         end
         
@@ -469,32 +397,10 @@ classdef MyCobot280 < handle
                 isAngles = false;  % Default to coordinates
             end
             
-            data = zeros(1, 13, 'uint8');
-            
             if isAngles
-                % Format angle data
-                for i = 1:6
-                    angleInt = int16(target(i) * 100);
-                    u = typecast(angleInt, 'uint16');
-                    data(2*i - 1) = uint8(bitshift(u, -8));
-                    data(2*i) = uint8(bitand(u, uint16(255)));
-                end
-                data(13) = 0;  % Angle mode
+                data = [MyCobot280.encodeAngles(target), uint8(0)];
             else
-                % Format coordinate data
-                for i = 1:3
-                    valueInt = int16(target(i) * 10);
-                    u = typecast(valueInt, 'uint16');
-                    data(2*i - 1) = uint8(bitshift(u, -8));
-                    data(2*i) = uint8(bitand(u, uint16(255)));
-                end
-                for i = 4:6
-                    valueInt = int16(target(i) * 100);
-                    u = typecast(valueInt, 'uint16');
-                    data(2*i - 1) = uint8(bitshift(u, -8));
-                    data(2*i) = uint8(bitand(u, uint16(255)));
-                end
-                data(13) = 1;  % Coordinate mode
+                data = [MyCobot280.encodeCoords(target), uint8(1)];
             end
             
             response = obj.sendCommandWithResponse(obj.CMD_IS_IN_POSITION, 1, data);
@@ -706,25 +612,7 @@ classdef MyCobot280 < handle
                 error('Must provide exactly 6 coordinates');
             end
             
-            data = zeros(1, 12, 'uint8');
-
-            % xyz coordinates
-            for i = 1:3
-                valueInt = int16(coords(i) * 10);
-                u = typecast(valueInt, 'uint16');
-                data(2*i - 1) = uint8(bitshift(u, -8));
-                data(2*i) = uint8(bitand(u, uint16(255)));
-            end
-
-            % rx, ry, rz angles
-            for i = 4:6
-                valueInt = int16(coords(i) * 100);
-                u = typecast(valueInt, 'uint16');
-                data(2*i - 1) = uint8(bitshift(u, -8));
-                data(2*i) = uint8(bitand(u, uint16(255)));
-            end
-
-            obj.sendCommand(obj.CMD_SET_TOOL_REFERENCE, data);
+            obj.sendCommand(obj.CMD_SET_TOOL_REFERENCE, MyCobot280.encodeCoords(coords));
         end
         
         function coords = getToolReference(obj)
@@ -733,29 +621,7 @@ classdef MyCobot280 < handle
             %   coords - 1x6 vector [x, y, z, rx, ry, rz]
             
             response = obj.sendCommandWithResponse(obj.CMD_GET_TOOL_REFERENCE, 12);
-            coords = zeros(1, 6);
-            
-            for i = 1:3  % x, y, z
-                highByte = response(2*i - 1);
-                lowByte = response(2*i);
-                temp = lowByte + highByte * 256;
-
-                if temp > 32767
-                    temp = temp - 65536;
-                end
-                coords(i) = temp / 10;  % Convert to mm
-            end
-
-            for i = 4:6  % rx, ry, rz
-                highByte = response(2*i - 1);
-                lowByte = response(2*i);
-                temp = lowByte + highByte * 256;
-
-                if temp > 32767
-                    temp = temp - 65536;
-                end
-                coords(i) = temp / 100;  % Convert to degrees
-            end
+            coords = MyCobot280.decodeCoords(response);
         end
 
         function setReferenceFrame(obj, rfType)
@@ -1325,6 +1191,76 @@ classdef MyCobot280 < handle
             % Record an error in commStats
             obj.commStats.lastError = sprintf('cmd 0x%02X: %s', command, ME.message);
             obj.commStats.lastErrorTime = char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss.SSS'));
+        end
+    end
+
+    methods (Static, Access = private)
+        function bytes = encodeInt16(value, scale)
+            % Encode a value as signed 16-bit big-endian byte pair
+            % Inputs:
+            %   value - Numeric value to encode
+            %   scale - Multiplier (e.g. 100 for angles, 10 for xyz)
+            % Output:
+            %   bytes - 1x2 uint8 [highByte, lowByte]
+
+            u = typecast(int16(value * scale), 'uint16');
+            bytes = [uint8(bitshift(u, -8)), uint8(bitand(u, uint16(255)))];
+        end
+
+        function value = decodeInt16(highByte, lowByte, scale)
+            % Decode a signed 16-bit big-endian byte pair to a value
+            % Inputs:
+            %   highByte - High byte
+            %   lowByte  - Low byte
+            %   scale    - Divisor (e.g. 100 for angles, 10 for xyz)
+            % Output:
+            %   value - Decoded numeric value
+
+            raw = double(lowByte) + double(highByte) * 256;
+            if raw > 32767
+                raw = raw - 65536;
+            end
+            value = raw / scale;
+        end
+
+        function bytes = encodeAngles(angles)
+            % Encode 1x6 angle vector to 12 bytes (each angle * 100)
+            bytes = zeros(1, 12, 'uint8');
+            for i = 1:6
+                bytes(2*i-1 : 2*i) = MyCobot280.encodeInt16(angles(i), 100);
+            end
+        end
+
+        function bytes = encodeCoords(coords)
+            % Encode 1x6 coordinate vector to 12 bytes
+            % xyz * 10, rx/ry/rz * 100
+            bytes = zeros(1, 12, 'uint8');
+            for i = 1:3
+                bytes(2*i-1 : 2*i) = MyCobot280.encodeInt16(coords(i), 10);
+            end
+            for i = 4:6
+                bytes(2*i-1 : 2*i) = MyCobot280.encodeInt16(coords(i), 100);
+            end
+        end
+
+        function angles = decodeAngles(response)
+            % Decode 12 response bytes to 1x6 angle vector (each / 100)
+            angles = zeros(1, 6);
+            for i = 1:6
+                angles(i) = MyCobot280.decodeInt16(response(2*i-1), response(2*i), 100);
+            end
+        end
+
+        function coords = decodeCoords(response)
+            % Decode 12 response bytes to 1x6 coordinate vector
+            % xyz / 10, rx/ry/rz / 100
+            coords = zeros(1, 6);
+            for i = 1:3
+                coords(i) = MyCobot280.decodeInt16(response(2*i-1), response(2*i), 10);
+            end
+            for i = 4:6
+                coords(i) = MyCobot280.decodeInt16(response(2*i-1), response(2*i), 100);
+            end
         end
     end
 end
