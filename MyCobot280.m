@@ -1,16 +1,23 @@
 classdef MyCobot280 < handle
-    % MyCobot280 - MATLAB class for serial UART communication with myCobot 280 robotic arm
-    % 
+    % MyCobot280 - MATLAB class for serial UART communication with myCobot 280 M5 robotic arm
+    %
     % This class implements the communication protocol for controlling the
-    % myCobot 280 robot via serial UART interface.
+    % myCobot 280 M5 robot via serial UART interface.
     %
     % Usage:
-    %   robot = MyCobot280('COM3');  % Windows
-    %   robot = MyCobot280('/dev/ttyUSB0');  % Linux
-    %   robot = MyCobot280('/dev/tty.usbserial-1234');  % macOS
+    %   myc = MyCobot280('COM13');
+    %   myc = MyCobot280('COM13', 'BaudRate', 115200, 'Debug', true);
+    %   myc = MyCobot280('/dev/ttyUSB0', 'Timeout', 5, 'MaxRetries', 3);
     %
-    % Author: [Your Name]
-    % Date: 2024
+    % Options:
+    %   'BaudRate'     - Serial baud rate (default: 115200)
+    %   'Timeout'      - Read timeout in seconds (default: 5)
+    %   'Debug'        - Print TX/RX bytes to console (default: false)
+    %   'MaxRetries'   - Retry count on communication failure (default: 3)
+    %   'CommandDelay' - Minimum delay between commands in seconds (default: 0.05)
+    %
+    % Author: Siddharth Vaghela
+    % Date: 2026
     
     properties (Access = private)
         serialPort      % Serial port object
