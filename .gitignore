@@ -1,0 +1,21 @@
+# Python
+*.py
+.venv/
+__pycache__/
+*.pyc
+
+# Cloned SDK
+pymycobot/
+
+# MATLAB generated
+*.asv
+*.mex*
+slprj/
+*.slxc
+codegen/
+
+# IDE / OS
+.claude/
+*.mat
+thumbs.db
+.DS_Store
